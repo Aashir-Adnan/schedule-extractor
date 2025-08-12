@@ -672,7 +672,7 @@ function App() {
                     onClick={addAdditionalCourse}
                     style={{
                       background: theme.button,
-                      color: theme.buttonText,
+                      color: darkMode ? "#43e97b" : "#FFF",
                       border: "none",
                       borderRadius: "6px",
                       padding: "0.25rem 0.75rem",
@@ -699,7 +699,7 @@ function App() {
                     width: "100%",
                     padding: "0.75rem",
                     background: theme.button,
-                    color: theme.buttonText,
+                    color: darkMode ? "#43e97b" : "#fff",
                     border: "none",
                     borderRadius: "8px",
                     fontWeight: "bold",
