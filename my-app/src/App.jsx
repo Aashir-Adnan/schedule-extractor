@@ -56,12 +56,12 @@ function App() {
   const [file, setFile] = useState(null);
   const [step, setStep] = useState(1);
   const [darkMode, setDarkMode] = useState(true);
-  const [error, setError] = useState(""); // For popup error
-  const [activeBtn, setActiveBtn] = useState(""); // for animating buttons
+  const [error, setError] = useState(""); 
+  const [activeBtn, setActiveBtn] = useState(""); 
   const scheduleRef = useRef();
   const fileInputRef = useRef();
 
-  // Add this style object for button animation
+  
   const animatedButtonStyle = {
     transition: "background 0.3s, color 0.3s, transform 0.1s",
     willChange: "transform",
@@ -70,7 +70,7 @@ function App() {
     transform: "scale(0.96)",
   };
 
-  // Extract unique classes after file upload
+  
   const handleFile = async (e) => {
     const uploadedFile = e.target.files[0];
     setFile(uploadedFile);
@@ -274,7 +274,7 @@ function App() {
       }
     }
 
-    // Group by day for display
+    
     const resultObj = {};
     for (const entry of foundClasses) {
       if (!selectedClasses.includes(entry.name)) continue;
@@ -291,7 +291,7 @@ function App() {
     if (uniqueClasses.length > 0) {
       setSelectedClasses(uniqueClasses);
     }
-    // eslint-disable-next-line
+    
   }, [section, additionalCourses, uniqueClasses]);
 
   function formatTime24to12(timeStr) {
@@ -303,7 +303,7 @@ function App() {
     return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
   }
 
-  // Download as PDF only
+  
   const handleDownloadPDF = async () => {
     if (!scheduleRef.current) return;
     const canvas = await html2canvas(scheduleRef.current, {
@@ -330,7 +330,7 @@ function App() {
   };
 
   function getOrderedDays(resultObj) {
-    // Always return all days, even if empty, to show "No classes"
+    
     console.log(resultObj)
     return DAY_ORDER.map((d) => [d, resultObj && resultObj[d] ? resultObj[d] : []]);
   }
@@ -352,7 +352,7 @@ function App() {
         boxSizing: "border-box",
       }}
     >
-      {/* Error Popup */}
+      {}
       {error && (
         <div
           style={{
@@ -446,7 +446,7 @@ function App() {
             >
               Schedule Extractinator 3000!
             </h2>
-            {/* Toggle Switch */}
+            {}
             <div
               style={{
                 marginLeft: "1rem",
@@ -499,7 +499,7 @@ function App() {
             </div>
           </div>
           <form onSubmit={handleSubmit} style={{ width: "100%" }}>
-            {/* Step 1: Upload */}
+            {}
             <div style={{ marginBottom: "1.5rem", textAlign: "center" }}>
               <input
                 type="file"
@@ -540,7 +540,7 @@ function App() {
                 </div>
               )}
             </div>
-            {/* Step 1.5: Discipline input */}
+            {}
             {step === 2 && (
               <label
                 style={{
@@ -570,7 +570,7 @@ function App() {
                 />
               </label>
             )}
-            {/* Step 2: Section and Additional Courses */}
+            {}
             {step === 2 && (
               <>
                 <label
@@ -719,7 +719,7 @@ function App() {
                 </button>
               </>
             )}
-            {/* Step 3: Checklist */}
+            {}
             {step === 3 && (
               <>
                 <div style={{ marginBottom: "1rem" }}>
@@ -801,7 +801,7 @@ function App() {
               </>
             )}
           </form>
-          {/* Show result */}
+          {}
           {result && Object.keys(result).length > 0 && (
             <div style={{ marginTop: "2rem", width: "100%" }}>
               <div style={{ display: "flex", justifyContent: "center", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -912,7 +912,7 @@ function App() {
             </div>
           )}
         </div>
-        {/* About Dev Section */}
+        {}
         <footer
           style={{
             marginTop: "2rem",
