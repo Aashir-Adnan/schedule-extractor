@@ -7,7 +7,8 @@ export default defineConfig({
   base: '/schedule-extractor/',
   server: {
     allowedHosts: [
-      'aashir-schedule-extractinator-3000.loca.lt' 
+      'aashir-schedule-extractinator-3000.loca.lt' ,
+      '*'
     ]
   }
 })
