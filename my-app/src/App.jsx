@@ -1038,48 +1038,74 @@ function App() {
             )}
           </div>
           { }
-          <footer
-            style={{
-              marginTop: "2rem",
-              textAlign: "center",
-              color: darkMode ? "#b7e4c7" : "#14452F",
-              fontSize: "0.9rem",
-              letterSpacing: "0.5px",
-              background: "transparent",
-              width: "100%",
-              display: "flex",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              style={{
-                background: darkMode ? "#14452F" : "#e9f5ee",
-                display: "inline-block",
-                padding: "0.5rem 1.2rem",
-                borderRadius: "10px",
-                boxShadow: `0 2px 8px ${theme.shadow}`,
-                fontSize: "0.95rem",
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: "1rem", marginBottom: "0.15rem" }}>
-                About the Developer
-              </div>
-              <div>
-                <span style={{ fontWeight: 500 }}>Aashir Adnan</span>
-                <br />
-                <a
-                  href="mailto:l226753@lhr.nu.edu.pk"
-                  style={{
-                    color: theme.text,
-                    textDecoration: "none",
-                    fontWeight: 500,
-                  }}
-                >
-                  l226753@lhr.nu.edu.pk
-                </a>
-              </div>
-            </div>
-          </footer>
+<footer
+  style={{
+    marginTop: "2rem",
+    textAlign: "center",
+    color: darkMode ? "#b7e4c7" : "#14452F",
+    fontSize: "0.9rem",
+    letterSpacing: "0.5px",
+    background: "transparent",
+    width: "50%",
+    display: "flex",
+    justifyContent: "center",
+    gap: "1rem",
+    flexWrap: "wrap", // allow boxes to wrap on small screens
+  }}
+>
+  {[
+    {
+      title: "Instagram",
+      link: "https://www.instagram.com/ihavethisthingwithsatire/",
+      username: "ihavethisthingwithsatire",
+      icon: "https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/instagram.svg",
+    },
+    {
+      title: "GitHub",
+      link: "https://github.com/Aashir-Adnan",
+      username: "Aashir-Adnan",
+      icon: "https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/github.svg",
+    },
+    {
+      title: "LinkedIn",
+      link: "https://www.linkedin.com/in/aashir-adnan-69521b253/",
+      username: "Aashir Adnan",
+      icon: "https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/linkedin.svg",
+    },
+  ].map((social) => (
+    <div
+      key={social.title}
+      style={{
+        background: darkMode ? "#14452F" : "#e9f5ee",
+        padding: "1rem",
+        borderRadius: "10px",
+        boxShadow: `0 2px 8px ${theme.shadow}`,
+        flex: "1 1 150px", // allow shrinking and wrapping
+        minWidth: "150px",
+        textAlign: "center",
+        marginBottom: "0.5rem",
+      }}
+    >
+      <div style={{ fontWeight: 600, fontSize: "1rem", marginBottom: "0.25rem" }}>
+        {social.title}
+      </div>
+      <a
+        href={social.link}
+        target="_blank"
+        rel="noreferrer"
+        style={{ textDecoration: "none", color: theme.text }}
+      >
+        <img
+          src={social.icon}
+          alt={social.title}
+          style={{ width: 30, height: 30, fill: theme.text }}
+        />
+        <div style={{ marginTop: "0.25rem", fontWeight: 500 }}>{social.username}</div>
+      </a>
+    </div>
+  ))}
+</footer>
+
         </div>
       </div>
     </>
