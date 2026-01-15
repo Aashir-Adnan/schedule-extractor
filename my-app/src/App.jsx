@@ -56,7 +56,7 @@ function App() {
   function setStored(key, value) {
     try {
       localStorage.setItem(key, JSON.stringify(value));
-    } catch {}
+    } catch { }
   }
 
   // Persistent dark mode
@@ -78,14 +78,14 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState(null);
   const [step, setStep] = useState(1);
-  const [error, setError] = useState(""); 
-  const [activeBtn, setActiveBtn] = useState(""); 
+  const [error, setError] = useState("");
+  const [activeBtn, setActiveBtn] = useState("");
   const [copied, setCopied] = useState(false);
 
   const scheduleRef = useRef();
   const fileInputRef = useRef();
 
-  
+
   const animatedButtonStyle = {
     transition: "background 0.3s, color 0.3s, transform 0.1s",
     willChange: "transform",
@@ -94,7 +94,7 @@ function App() {
     transform: "scale(0.96)",
   };
 
-  
+
   const handleFile = async (e) => {
     const uploadedFile = e.target.files[0];
     setFile(uploadedFile);
@@ -107,92 +107,127 @@ function App() {
     setStep(2);
   };
 
-  const extractFoundClasses = () => {
-    if (!file || !discipline) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = evt.target.result;
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheetName = workbook.SheetNames.find(
-        (name) => name.toLowerCase() === discipline.toLowerCase()
-      );
-      if (!sheetName) {
-        setError(`Sheet '${discipline}' not found.`);
-        return;
-      }
-      const csSheet = workbook.Sheets[sheetName];
-      const range = XLSX.utils.decode_range(csSheet["!ref"]);
-      const foundClasses = [];
+  async function extractSchedule({ file, discipline, section, additionalCourses }) {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: "array" });
 
-      for (let row = 4; row <= range.e.r; row++) {
-        const courseNameCell = csSheet[XLSX.utils.encode_cell({ r: row, c: 1 })];
-        const sectionCell = csSheet[XLSX.utils.encode_cell({ r: row, c: 2 })];
-        if (!courseNameCell || !sectionCell) continue;
+    const sheetName = workbook.SheetNames.find(
+      (n) => n.toLowerCase() === discipline.toLowerCase()
+    );
+    if (!sheetName) throw new Error("Sheet not found");
 
-        const courseName = String(courseNameCell.v).trim();
-        const courseSection = String(sectionCell.v).trim();
+    const csSheet = workbook.Sheets[sheetName];
+    const range = XLSX.utils.decode_range(csSheet["!ref"]);
+    const byDay = {};
 
-        const isSectionMatch =
-          section &&
-          courseSection.toLowerCase().includes(section.toLowerCase());
-        const isAdditionalMatch =
-          Array.isArray(additionalCourses) &&
-          additionalCourses.some(
-            (course) =>
-              course.name &&
-              course.section &&
-              courseName.toLowerCase().includes(course.name.toLowerCase()) &&
-              courseSection.toLowerCase().includes(course.section.toLowerCase())
-          );
+    const col = {};
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = csSheet[XLSX.utils.encode_cell({ r: 1, c })];
+      if (!cell) continue;
+      const v = String(cell.v).toLowerCase().trim();
+      if (v === "day 1") col.d1 = c;
+      if (v === "slot 1") col.t1 = c;
+      if (v === "venue 1") col.v1 = c;
+      if (v === "day 2") col.d2 = c;
+      if (v === "slot 2") col.t2 = c;
+      if (v === "venue 2") col.v2 = c;
+      if (v === "course short title") col.cst = c;
+    }
 
-        if (isSectionMatch || isAdditionalMatch) {
-          const day1Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 13 })];
-          const time1Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 14 })];
-          const venue1Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 15 })];
+    const add = (row, d, t, v, name, sectionVal) => {
+      const dc = csSheet[XLSX.utils.encode_cell({ r: row, c: d })];
+      const tc = csSheet[XLSX.utils.encode_cell({ r: row, c: t })];
+      const vc = csSheet[XLSX.utils.encode_cell({ r: row, c: v })];
+      if (!dc || !tc || !vc) return;
 
-          const day2Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 16 })];
-          const time2Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 17 })];
-          const venue2Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 18 })];
+      const day = String(dc.v).toLowerCase().slice(0, 3);
+      const start = String(tc.v).trim();
+      const venue = String(vc.v).trim();
+      if (!day || !start || !venue) return;
 
-          const addClassEntry = (dayCell, timeCell, venueCell) => {
-            if (!dayCell || !timeCell || !venueCell) return;
-            const day = String(dayCell.v).trim();
-            const startTime = String(timeCell.v).trim();
-            const venue = String(venueCell.v).trim();
-            if (!day || !startTime || !venue) return;
+      const [h, m] = start.split(":").map(Number);
+      const end = new Date(2000, 0, 1, h, m + 90)
+        .toTimeString()
+        .slice(0, 5);
 
-            const [h, m] = startTime.split(":").map(Number);
-            const startDate = new Date(2000, 0, 1, h, m);
-            const endDate = new Date(startDate.getTime() + 90 * 60000);
-            const endTime = endDate
-              .toTimeString()
-              .slice(0, 5);
+      if (!byDay[day]) byDay[day] = [];
+      byDay[day].push({
+        name,
+        section: sectionVal,
+        day,
+        time: `${start}-${end}`,
+        venue,
+      });
+    };
 
-            foundClasses.push({
-              name: courseName,
-              section: courseSection,
-              day,
-              time: `${startTime}-${endTime}`,
-              venue,
-            });
-          };
+    for (let r = 4; r <= range.e.r; r++) {
+      const nameCell = csSheet[XLSX.utils.encode_cell({ r, c: 1 })];
+      const secCell = csSheet[XLSX.utils.encode_cell({ r, c: 2 })];
+      const shortNameCell = csSheet[XLSX.utils.encode_cell({ r, c: 8})];
+      if (!nameCell || !secCell) continue;
 
-          addClassEntry(day1Cell, time1Cell, venue1Cell);
-          if (day2Cell && String(day2Cell.v).trim()) {
-            addClassEntry(day2Cell, time2Cell, venue2Cell);
-          }
-        }
-      }
+      const name = String(nameCell.v).trim();
+      const sectionVal = String(secCell.v).trim();
+      const shortName = String(shortNameCell?.v)?.trim() || "";
 
-      const classList = Array.from(
-        new Set(foundClasses.map((c) => c.name))
-      );
+      const match =
+        (section && sectionVal.toLowerCase().includes(section.toLowerCase())) ||
+        additionalCourses?.some(
+          (c) =>
+           ( name.toLowerCase().includes(c.name.toLowerCase()) || shortName?.toLowerCase().includes(c.name.toLowerCase()) ) &&
+            sectionVal.toLowerCase().includes(c.section.toLowerCase())
+        );
+
+      if (!match) continue;
+
+      add(r, col.d1, col.t1, col.v1, name, sectionVal);
+      add(r, col.d2, col.t2, col.v2, name, sectionVal);
+    }
+
+    return byDay;
+  }
+
+  const extractFoundClasses = async () => {
+    try {
+      const result = await extractSchedule({
+        file,
+        discipline,
+        section,
+        additionalCourses,
+      });
+
+      const classList = [
+        ...new Set(Object.values(result).flat().map((c) => c.name)),
+      ];
+
       setUniqueClasses(classList);
       setSelectedClasses(classList);
-      setResult({ allClasses: foundClasses });
-    };
-    reader.readAsArrayBuffer(file);
+      setResult(result);
+    } catch (e) {
+      setError(e.message);
+    }
   };
+
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const result = await extractSchedule({
+      file,
+      discipline,
+      section,
+      additionalCourses,
+    });
+
+    Object.keys(result).forEach(
+      (d) => (result[d] = result[d].filter((c) => selectedClasses.includes(c.name)))
+    );
+
+    setResult(result);
+    setLoading(false);
+  };
+
 
   const handleClassToggle = (cls) => {
     setSelectedClasses((prev) =>
@@ -215,107 +250,13 @@ function App() {
   const removeAdditionalCourse = (idx) => {
     setAdditionalCourses((prev) => prev.filter((_, i) => i !== idx));
   };
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!file || !discipline) {
-      setError("Please upload your Timetable.xlsx file and select your discipline.");
-      return;
-    }
-    setLoading(true);
-    setResult(null);
 
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: "array" });
-    const sheetName = workbook.SheetNames.find(
-      (name) => name.toLowerCase() === discipline.toLowerCase()
-    );
-    if (!sheetName) {
-      setError(`Sheet '${discipline}' not found.`);
-      setLoading(false);
-      return;
-    }
-    const csSheet = workbook.Sheets[sheetName];
-    const range = XLSX.utils.decode_range(csSheet["!ref"]);
-    const foundClasses = [];
-
-    for (let row = 4; row <= range.e.r; row++) {
-      const courseNameCell = csSheet[XLSX.utils.encode_cell({ r: row, c: 1 })];
-      const sectionCell = csSheet[XLSX.utils.encode_cell({ r: row, c: 2 })];
-      if (!courseNameCell || !sectionCell) continue;
-
-      const courseName = String(courseNameCell.v).trim();
-      const courseSection = String(sectionCell.v).trim();
-
-      const isSectionMatch =
-        section &&
-        courseSection.toLowerCase().includes(section.toLowerCase());
-      const isAdditionalMatch =
-        Array.isArray(additionalCourses) &&
-        additionalCourses.some(
-          (course) =>
-            course.name &&
-            course.section &&
-            courseName.toLowerCase().includes(course.name.toLowerCase()) &&
-            courseSection.toLowerCase().includes(course.section.toLowerCase())
-        );
-
-      if (isSectionMatch || isAdditionalMatch) {
-        const day1Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 13 })];
-        const time1Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 14 })];
-        const venue1Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 15 })];
-
-        const day2Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 16 })];
-        const time2Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 17 })];
-        const venue2Cell = csSheet[XLSX.utils.encode_cell({ r: row, c: 18 })];
-
-        const addClassEntry = (dayCell, timeCell, venueCell) => {
-          if (!dayCell || !timeCell || !venueCell) return;
-          const day = String(dayCell.v).trim();
-          const startTime = String(timeCell.v).trim();
-          const venue = String(venueCell.v).trim();
-          if (!day || !startTime || !venue) return;
-
-          const [h, m] = startTime.split(":").map(Number);
-          const startDate = new Date(2000, 0, 1, h, m);
-          const endDate = new Date(startDate.getTime() + 90 * 60000);
-          const endTime = endDate
-            .toTimeString()
-            .slice(0, 5);
-
-          foundClasses.push({
-            name: courseName,
-            section: courseSection,
-            day,
-            time: `${startTime}-${endTime}`,
-            venue,
-          });
-        };
-
-        addClassEntry(day1Cell, time1Cell, venue1Cell);
-        if (day2Cell && String(day2Cell.v).trim()) {
-          addClassEntry(day2Cell, time2Cell, venue2Cell);
-        }
-      }
-    }
-
-    
-    const resultObj = {};
-    for (const entry of foundClasses) {
-      if (!selectedClasses.includes(entry.name)) continue;
-      const dayKey = entry.day.toLowerCase();
-      if (!resultObj[dayKey]) resultObj[dayKey] = [];
-      resultObj[dayKey].push(entry);
-    }
-
-    setResult(resultObj);
-    setLoading(false);
-  };
 
   useEffect(() => {
     if (uniqueClasses.length > 0) {
       setSelectedClasses(uniqueClasses);
     }
-    
+
   }, [section, additionalCourses, uniqueClasses]);
 
   function formatTime24to12(timeStr) {
@@ -327,85 +268,85 @@ function App() {
     return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
   }
 
-  
+
   // PDF download: always use desktop format (fixed width, scale content)
   const handleDownloadPDF = () => {
-  if (!result) return;
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "pt",
-    format: "a4",
-  });
+    if (!result) return;
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "pt",
+      format: "a4",
+    });
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  let y = 40;
-  const leftMargin = 36;
-  const lineHeight = 22;
-  const titleFontSize = 20;
-  const dayFontSize = 15;
-  const textFontSize = 12;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    let y = 40;
+    const leftMargin = 36;
+    const lineHeight = 22;
+    const titleFontSize = 20;
+    const dayFontSize = 15;
+    const textFontSize = 12;
 
-  // Dark mode colors
-  const bgColor = theme.bg;
-  const cardColor = theme.card;
-  const accentColor = theme.text;
-  const textColor = theme.text;
-  const subtextColor = theme.subtext;
+    // Dark mode colors
+    const bgColor = theme.bg;
+    const cardColor = theme.card;
+    const accentColor = theme.text;
+    const textColor = theme.text;
+    const subtextColor = theme.subtext;
 
-  // Draw dark background
-  pdf.setFillColor(bgColor);
-  pdf.rect(0, 0, pageWidth, pageHeight, "F");
+    // Draw dark background
+    pdf.setFillColor(bgColor);
+    pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
-  // Title
-  pdf.setFontSize(titleFontSize);
-  pdf.setTextColor(accentColor);
-  pdf.text("Your Schedule", pageWidth / 2, y, { align: "center" });
-  y += 30;
-
-  getOrderedDays(result).forEach(([day, classes]) => {
-    // Draw card background for each day
-    const cardHeight = (classes.length ? classes.length : 1) * lineHeight + 36;
-    pdf.setFillColor(cardColor);
-    pdf.roundedRect(leftMargin - 10, y - 18, pageWidth - leftMargin * 2 + 20, cardHeight, 10, 10, "F");
-
-    pdf.setFontSize(dayFontSize);
+    // Title
+    pdf.setFontSize(titleFontSize);
     pdf.setTextColor(accentColor);
-    pdf.text(day.charAt(0).toUpperCase() + day.slice(1), leftMargin, y);
+    pdf.text("Your Schedule", pageWidth / 2, y, { align: "center" });
+    y += 30;
 
-    y += lineHeight;
+    getOrderedDays(result).forEach(([day, classes]) => {
+      // Draw card background for each day
+      const cardHeight = (classes.length ? classes.length : 1) * lineHeight + 36;
+      pdf.setFillColor(cardColor);
+      pdf.roundedRect(leftMargin - 10, y - 18, pageWidth - leftMargin * 2 + 20, cardHeight, 10, 10, "F");
 
-    if (!classes.length) {
-      pdf.setFontSize(textFontSize);
-      pdf.setTextColor(subtextColor);
-      pdf.text("No classes", leftMargin + 20, y);
+      pdf.setFontSize(dayFontSize);
+      pdf.setTextColor(accentColor);
+      pdf.text(day.charAt(0).toUpperCase() + day.slice(1), leftMargin, y);
+
       y += lineHeight;
-    } else {
-      classes.forEach((cls) => {
-        pdf.setFontSize(textFontSize);
-        pdf.setTextColor(textColor);
-        const [start, end] = cls.time.split("-");
-        const line = `${cls.name} | ${formatTime24to12(start)} - ${formatTime24to12(end)} | ${cls.venue}`;
-        // Wrap text if too long
-        const split = pdf.splitTextToSize(line, pageWidth - leftMargin * 2 - 20);
-        split.forEach((txt) => {
-          pdf.text(txt, leftMargin + 20, y);
-          y += lineHeight;
-        });
-      });
-    }
-    y += 16;
-    // Add new page if near bottom
-    if (y > pageHeight - 60) {
-      pdf.addPage();
-      pdf.setFillColor(bgColor);
-      pdf.rect(0, 0, pageWidth, pageHeight, "F");
-      y = 40;
-    }
-  });
 
-  pdf.save("schedule.pdf");
-};
+      if (!classes.length) {
+        pdf.setFontSize(textFontSize);
+        pdf.setTextColor(subtextColor);
+        pdf.text("No classes", leftMargin + 20, y);
+        y += lineHeight;
+      } else {
+        classes.forEach((cls) => {
+          pdf.setFontSize(textFontSize);
+          pdf.setTextColor(textColor);
+          const [start, end] = cls.time.split("-");
+          const line = `${cls.name} | ${formatTime24to12(start)} - ${formatTime24to12(end)} | ${cls.venue}`;
+          // Wrap text if too long
+          const split = pdf.splitTextToSize(line, pageWidth - leftMargin * 2 - 20);
+          split.forEach((txt) => {
+            pdf.text(txt, leftMargin + 20, y);
+            y += lineHeight;
+          });
+        });
+      }
+      y += 16;
+      // Add new page if near bottom
+      if (y > pageHeight - 60) {
+        pdf.addPage();
+        pdf.setFillColor(bgColor);
+        pdf.rect(0, 0, pageWidth, pageHeight, "F");
+        y = 40;
+      }
+    });
+
+    pdf.save("schedule.pdf");
+  };
 
   // Copy to clipboard (plain text)
   const handleCopy = () => {
@@ -468,7 +409,7 @@ function App() {
           overflowX: "hidden",
         }}
       >
-        {}
+        { }
         {error && (
           <div
             style={{
@@ -566,7 +507,7 @@ function App() {
               >
                 Schedule Extractinator 3000!
               </h2>
-              {}
+              { }
               <div
                 style={{
                   marginLeft: "1rem",
@@ -619,7 +560,7 @@ function App() {
               </div>
             </div>
             <form onSubmit={handleSubmit} style={{ width: "100%" }}>
-              {}
+              { }
               <div style={{ marginBottom: "1.5rem", textAlign: "center" }}>
                 <input
                   type="file"
@@ -660,7 +601,7 @@ function App() {
                   </div>
                 )}
               </div>
-              {}
+              { }
               {step === 2 && (
                 <label
                   style={{
@@ -690,7 +631,7 @@ function App() {
                   />
                 </label>
               )}
-              {}
+              { }
               {step === 2 && (
                 <div style={{ display: "flex", gap: "0.5rem", width: "100%", marginBottom: "1rem", flexWrap: "wrap" }}>
                   <label
@@ -825,7 +766,7 @@ function App() {
                   </div>
                 </div>
               )}
-              {}
+              { }
               {step === 2 && (
                 <>
                   <button
@@ -858,7 +799,7 @@ function App() {
                   </button>
                 </>
               )}
-              {}
+              { }
               {step === 3 && (
                 <>
                   <div style={{ marginBottom: "1rem" }}>
@@ -959,7 +900,7 @@ function App() {
                 </>
               )}
             </form>
-            {}
+            { }
             {result && (
               <div style={{ marginTop: "2rem", width: "100%" }}>
                 <div style={{ display: "flex", justifyContent: "center", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
@@ -1096,7 +1037,7 @@ function App() {
               </div>
             )}
           </div>
-          {}
+          { }
           <footer
             style={{
               marginTop: "2rem",
